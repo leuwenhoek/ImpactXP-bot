@@ -102,11 +102,12 @@ class RampageBot(commands.Bot):
         text_channel = self.get_channel(RAMPAGE_TEXT_CHANNEL_ID)
         
         # --- REGULAR DAILY CYCLE ---
-        if self.current_thread_id:
-            try:
-                old = self.get_channel(self.current_thread_id)
-                if old: await old.edit(archived=True, locked=True)
-            except: pass
+        task_chan = self.get_channel(RAMPAGE_TASK_CHANNEL_ID)
+        if task_chan and hasattr(task_chan, 'threads'):
+            for thread in task_chan.threads:
+                if not thread.archived:
+                    try: await thread.edit(archived=True, locked=True)
+                    except: pass
 
         if text_channel:
             # Post Daily Results
@@ -132,31 +133,30 @@ class RampageBot(commands.Bot):
 
         self.daily_xp.clear()
 
-        # Create New Thread For March 10th - 17th Only
-        if now.month == 3 and 10 <= now.day <= 17:
-            task_chan = self.get_channel(RAMPAGE_TASK_CHANNEL_ID)
-            if task_chan:
-                t_name = f"task list - {now.strftime('%d %b')}"
-                try:
-                    if isinstance(task_chan, discord.ForumChannel):
-                        p = await task_chan.create_thread(name=t_name, content="🦍 Post work here!")
-                        self.current_thread_id = p.thread.id
-                    else:
-                        th = await task_chan.create_thread(name=t_name, type=discord.ChannelType.public_thread)
-                        self.current_thread_id = th.id
-                except discord.Forbidden:
-                    if text_channel:
-                        await text_channel.send(f"⚠️ **Error:** I don't have permission to create threads/posts in <#{task_chan.id}>! Please grant me 'Create Public Threads/Send Messages' permissions.")
-                    return
-
+        # Create New Thread
+        task_chan = self.get_channel(RAMPAGE_TASK_CHANNEL_ID)
+        if task_chan:
+            t_name = f"task list - {now.strftime('%d %b')}"
+            try:
+                if isinstance(task_chan, discord.ForumChannel):
+                    p = await task_chan.create_thread(name=t_name, content="🦍 Post work here!")
+                    self.current_thread_id = p.thread.id
+                else:
+                    th = await task_chan.create_thread(name=t_name, type=discord.ChannelType.public_thread)
+                    self.current_thread_id = th.id
+            except discord.Forbidden:
                 if text_channel:
-                    msg = (
-                        f"🔥 **Thread is OPEN now!**\n"
-                        f"Share your work in this format inside <#{self.current_thread_id}>:\n"
-                        "```\n1.\n2.\n3.\n4.\n```"
-                    )
-                    await text_channel.send(msg)
-                    
+                    await text_channel.send(f"⚠️ **Error:** I don't have permission to create threads/posts in <#{task_chan.id}>! Please grant me 'Create Public Threads/Send Messages' permissions.")
+                return
+
+            if text_channel:
+                msg = (
+                    f"🔥 **Thread is OPEN now!**\n"
+                    f"Share your work in this format inside <#{self.current_thread_id}>:\n"
+                    "```\n1.\n2.\n3.\n4.\n```"
+                )
+                await text_channel.send(msg)
+        
         # --- MARCH 18: FINALE LOGIC ---
         if now.day == 18 and now.month == 3:
             conn = self.get_db_connection(); cur = conn.cursor()
@@ -199,10 +199,16 @@ async def on_voice_state_update(member, before, after):
 @bot.event
 async def on_message(message):
     if message.author.bot: return
-    if bot.current_thread_id and message.channel.id == bot.current_thread_id:
-        nums = re.findall(r'\d+', message.content)
-        if nums:
-            bot.add_xp(message.author.id, tasks_xp=int(nums[-1]) * 5)
+    
+    # Allow XP if the message is in a thread belonging to the Rampage Task Channel
+    in_task_thread = isinstance(message.channel, discord.Thread) and message.channel.parent_id == RAMPAGE_TASK_CHANNEL_ID
+    
+    if in_task_thread or (bot.current_thread_id and message.channel.id == bot.current_thread_id):
+        # Find all lines that start with a number followed by a dot (e.g. 1. 2. 3.)
+        tasks = re.findall(r'^\s*\d+\.', message.content, re.MULTILINE)
+        if tasks:
+            task_count = len(tasks)
+            bot.add_xp(message.author.id, tasks_xp=task_count * 5)
             await message.add_reaction("📈")
     await bot.process_commands(message)
 
@@ -302,6 +308,8 @@ async def all_time(ctx):
         member = ctx.guild.get_member(int(uid))
         name = member.display_name if member else f"User:{uid}"
         total = ((seconds/3600)*3) + task_xp
+        embed.add_field(name=f"{i}. {name}", value=f"XP: `{total:.2f}`", inline=False)
+    await ctx.send(embed=embed)
 @bot.command(name="start_day")
 @commands.has_permissions(administrator=True)
 async def start_day(ctx, pin: str):
@@ -337,7 +345,7 @@ async def test_start_day(ctx, pin: str):
         if text_channel:
             msg = (
                 f"🔥 **Thread is OPEN now!**\n"
-                f"Share your work in this format inside <#{bot.current_thread_id}>:\n"
+                f"Share your work in this format inside <#🦍-rampage-task>:\n"
                 "```\n1.\n2.\n3.\n4.\n```"
             )
             await text_channel.send(msg)
@@ -356,11 +364,13 @@ async def test_end_day(ctx, pin: str):
     if pin != RESET_PIN:
         await ctx.send("❌ Incorrect PIN.")
         return
-    if bot.current_thread_id:
-        try:
-            old = bot.get_channel(bot.current_thread_id)
-            if old: await old.edit(archived=True, locked=True)
-        except: pass
+        
+    task_chan = bot.get_channel(RAMPAGE_TASK_CHANNEL_ID)
+    if task_chan and hasattr(task_chan, 'threads'):
+        for thread in task_chan.threads:
+            if not thread.archived:
+                try: await thread.edit(archived=True, locked=True)
+                except: pass
 
     text_channel = bot.get_channel(RAMPAGE_TEXT_CHANNEL_ID)
     if text_channel:
@@ -425,35 +435,45 @@ async def test_end_event(ctx, pin: str):
         await ctx.send("❌ Incorrect PIN.")
         return
     main_ann_channel = bot.get_channel(MAIN_ANNOUNCEMENT_CHANNEL_ID)
+    if not main_ann_channel:
+        await ctx.send(f"❌ Announcement channel not found. Check `MAIN_ANNOUNCEMENT_CHANNEL_ID` in your .env (currently set to `{MAIN_ANNOUNCEMENT_CHANNEL_ID}`).")
+        return
+
     conn = bot.get_db_connection(); cur = conn.cursor()
     cur.execute("SELECT * FROM rampage_stats"); rows = cur.fetchall()
     cur.close(); conn.close()
-    
-    if rows and main_ann_channel:
-        winner_data = max(rows, key=lambda x: ((x[1]/3600)*3) + x[2])
-        winner_member = main_ann_channel.guild.get_member(int(winner_data[0]))
-        
-        if winner_member:
-            role = main_ann_channel.guild.get_role(WINNER_ROLE_ID)
-            if role: 
-                try:
-                    await winner_member.add_roles(role)
-                except discord.Forbidden:
-                    await ctx.send("⚠️ Cannot add winner role (Missing Permissions).")
-            
-            winner_hrs = int(winner_data[1] // 3600)
-            total_xp = ((winner_data[1]/3600)*3) + winner_data[2]
 
-            embed = discord.Embed(title="🔱 RAMPAGE CHAMPION CROWNED! 🏆", color=0xFFD700)
-            embed.description = f"{winner_member.mention} **DOMINATED** the 7-day beast mode!\n**Ultimate Rampage Champion** 🦍💥"
-            embed.add_field(name="📊 Winning Stats", value=f"• **VC Hours:** {winner_hrs}h\n• **Total Score:** {total_xp:.2f} XP", inline=False)
-            embed.set_footer(text="GG to all beasts! | Next grind soon! 🚀")
-            await main_ann_channel.send(content="@everyone", embed=embed)
-            await ctx.send("✅ End event announcement sent.")
-        else:
-            await ctx.send("❌ Winner member not found in guild.")
-    else:
-        await ctx.send("❌ No stats or channel not found.")
+    if not rows:
+        await ctx.send("❌ No stats found in the database. No one has earned XP yet!")
+        return
+
+    winner_data = max(rows, key=lambda x: ((x[1]/3600)*3) + x[2])
+    winner_id = int(winner_data[0])
+    # Try cache first, then fetch from Discord API
+    winner_member = main_ann_channel.guild.get_member(winner_id)
+    if not winner_member:
+        try:
+            winner_member = await main_ann_channel.guild.fetch_member(winner_id)
+        except discord.NotFound:
+            await ctx.send(f"❌ Winner (ID: `{winner_id}`) is no longer in the server.")
+            return
+
+    role = main_ann_channel.guild.get_role(WINNER_ROLE_ID)
+    if role:
+        try:
+            await winner_member.add_roles(role)
+        except discord.Forbidden:
+            await ctx.send("⚠️ Cannot add winner role (Missing Permissions).")
+
+    winner_hrs = int(winner_data[1] // 3600)
+    total_xp = ((winner_data[1]/3600)*3) + winner_data[2]
+
+    embed = discord.Embed(title="🔱 RAMPAGE CHAMPION CROWNED! 🏆", color=0xFFD700)
+    embed.description = f"{winner_member.mention} **DOMINATED** the 7-day beast mode!\n**Ultimate Rampage Champion** 🦍💥"
+    embed.add_field(name="📊 Winning Stats", value=f"• **VC Hours:** {winner_hrs}h\n• **Total Score:** {total_xp:.2f} XP", inline=False)
+    embed.set_footer(text="GG to all beasts! | Next grind soon! 🚀")
+    await main_ann_channel.send(content="@everyone", embed=embed)
+    await ctx.send("✅ End event announcement sent.")
 
 @bot.command(name="role")
 @commands.has_permissions(administrator=True)
