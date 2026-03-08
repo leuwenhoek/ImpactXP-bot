@@ -1,0 +1,33 @@
+=============================================
+IMPACTXP RAMPAGE BOT - COMMANDS GUIDE
+=============================================
+
+All Admin commands require you to plug in the hidden RESET_PIN pulled from your `.env` file first to prevent unauthorized server tampering.
+
+💬 MEMBER COMMANDS (Public)
+---------------------------------------------
+`!help` - Displays the setup guide explaining ImpactXP rules, task formatting, and basic commands.
+`!lb` - Shows the Daily Rankings (Top 10) leaderboard for the current day, combining VC Time + Task XP natively.
+`!all_time` - Shows the All-Time Hall of Fame (Top 15) leaderboard drawn strictly from the Neon Database.
+
+🛠️ ADMIN COMMANDS (Role Required + PIN)
+---------------------------------------------
+`!start_day [pin]` 
+- Manually fires the daily midnight cycle. Useful for debugging thread creation. 
+- Example: `!start_day 1234`
+
+`!end_day [pin]` 
+- Manually forces the day to end without calculating a new thread. Drops current results and zeroes out internal daily XP tracking.
+
+`!start_event [pin]` 
+- Manually blasts the "🚨 THE RAMPAGE HAS BEGUN! 🦍" announcement payload without waiting for March 10th.
+
+`!end_event [pin]` 
+- Manually blasts the "🔱 RAMPAGE CHAMPION CROWNED! 🏆" announcement payload, tallies the database winner, and assigns the Winner Role without waiting for March 18th. 
+
+`!role [pin] [role_id] [member_id]` 
+- Immediately grants a target User ID a specific Discord Role ID. (Bot must have higher role hierarchy inside server settings to function).
+- Example: `!role 1234 111111111111111111 222222222222222222`
+
+`!reset [pin]` 
+- NUKES the PostgreSQL database and wipes the entire All-Time and Daily in-memory leaderboards clean. Cannot be undone.

@@ -1,0 +1,40 @@
+=============================================
+IMPACTXP RAMPAGE BOT - AUTOMATED IST SCHEDULE
+=============================================
+
+All times and mechanics are strictly localized to Indian Standard Time (IST) (UTC+5:30).
+
+⏰ AUTOMATED SCHEDULE
+---------------------------------------------
+1. [March 10th @ 12:00 AM IST] - Event Starts
+   - The bot automatically sends the "THE RAMPAGE HAS BEGUN" embed to MAIN_ANNOUNCEMENT_CHANNEL_ID.
+   - It begins tracking voice channel time for users and accepting task inputs.
+
+2. [March 10th to March 17th @ 12:00 AM IST Daily] - Daily Cycle Reset
+   - Automatically posts the "Daily Results" and "All-Time Standings" in RAMPAGE_TEXT_CHANNEL_ID.
+   - Archives and locks yesterday's thread in RAMPAGE_TASK_CHANNEL_ID.
+   - Opens the new day's task thread (e.g., "task list - 10 Mar") and prompts users to post their work.
+   - Clears the in-memory daily XP leaderboard for a fresh start.
+   *Note: Threads are deliberately blocked from auto-generating prior to March 10th.*
+
+3. [March 18th @ 12:00 AM IST] - The Finale
+   - Evaluates the final All-Time database standings.
+   - Automatically posts the "RAMPAGE CHAMPION CROWNED" embed to MAIN_ANNOUNCEMENT_CHANNEL_ID.
+   - Computes the user with the highest XP mathematically constraint `((Total VC Hours * 3) + Task XP)` and declares them the winner.
+   - Attempts to assign WINNER_ROLE_ID to the Champion.
+   - Permanently halts the daily automation cycle.
+
+🧮 HOW IMPACT XP IS CALCULATED
+---------------------------------------------
+Your ImpactXP score is derived from merging Voice Channel focus time with actionable tasks. 
+- You generate baseline XP dynamically by simply sitting in an active Voice Channel.
+- Every completed task you log in the thread yields a solid `+5 XP` multiplier bump.
+
+📝 HOW TO SUBMIT DAILY TASKS
+---------------------------------------------
+You must type inside the active task thread using exactly a numbered format like this:
+1. Built the database schema
+2. Read 2 chapters
+3. Gym session
+
+The bot silently tallies the highest number (e.g., "3") and adds `15 XP` (3 x 5 XP) to your daily and all-time total, reacting with a 📈 emoji.
