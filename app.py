@@ -5,6 +5,7 @@ import psycopg2
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
 from datetime import datetime, time, timezone, timedelta
+import webserver
 
 # --- CONFIGURATION ---
 load_dotenv()
@@ -520,5 +521,6 @@ async def reset_data(ctx, pin: str):
     else:
         await ctx.send("❌ Incorrect PIN. Reset aborted.")
 
+webserver.keep_alive()
 if TOKEN:
     bot.run(TOKEN)
